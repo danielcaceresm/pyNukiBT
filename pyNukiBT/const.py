@@ -1,5 +1,5 @@
 import construct
-from construct import Bit, BitStruct, Optional, Padding, OffsettedEnd, Struct, Byte, Enum, Int8ul, Int16ul, Int32ul, Int8sl, Int16sl, Float32l, PaddedString, Bytes, Switch, GreedyBytes, this
+from construct import Bit, BitStruct, Optional, Padding, OffsettedEnd, Seek, Struct, Byte, Enum, Int8ul, Int16ul, Int32ul, Int8sl, Int16sl, Float32l, PaddedString, Bytes, Switch, GreedyBytes, this
 import functools
 import crccheck
 
@@ -442,7 +442,7 @@ class NukiConst:
 
     LogEntryExt1 = Struct(
         "logging_enabled" / Int8ul,
-        "padding" / Padding(4),
+        "padding" / Optional(Padding(4)), #Nuki3 has padding, Nuki4 doesn't
     )
 
     @functools.cached_property
@@ -452,7 +452,7 @@ class NukiConst:
             "trigger" / self.ActionTrigger,
             "flags" / Int8ul,
             "completion_status" / self.LockActionCompletionStatus,
-            "padding" / Padding(1),
+            "padding" / Optional(Padding(1)), #Nuki3 has padding, Nuki4 doesn't
         )
 
     @functools.cached_property
@@ -466,7 +466,7 @@ class NukiConst:
 
     LogEntryExt4 = Struct(
         "door_status" / Int8ul,
-        "padding" / Padding(4),
+        "padding" / Optional(Padding(4)), #Nuki3 has padding, Nuki4 doesn't
     )
 
     @functools.cached_property
@@ -551,7 +551,8 @@ class NukiConst:
         return Struct(
             "auth_id" / Bytes(4),
             "command" / self.NukiCommand,
-            "payload" / Switch(this.command, self.message_types),
+            "payload" / OffsettedEnd(-2, Switch(this.command, self.message_types)), #limit payload parsing stream, otherwise internal Optional() doesn't work.
+            Seek(lambda x: x.payload._io.tell()), #seek back to the end of actually parsed data.
             "unknown" / Optional(OffsettedEnd(-2, GreedyBytes)),
             "crc" / NukiChecksum(Int16ul,
                              lambda data: crcCalc.calc(data),
@@ -562,7 +563,8 @@ class NukiConst:
     def NukiUnencryptedMessage(self):
         return Struct(
             "command" / self.NukiCommand,
-            "payload" / Switch(this.command, self.message_types),
+            "payload" / OffsettedEnd(-2, Switch(this.command, self.message_types)),
+            Seek(lambda x: x.payload._io.tell()), #seek back to the end of actually parsed data.
             "unknown" / Optional(OffsettedEnd(-2, GreedyBytes)),
             "crc" / NukiChecksum(Int16ul,
                              lambda data: crcCalc.calc(data),
@@ -574,7 +576,8 @@ class NukiConst:
         return Struct(
             "auth_id" / Bytes(4),
             "command" / self.NukiCommand,
-            "payload" / Switch(this.command, self.message_types),
+            "payload" / OffsettedEnd(-2, Switch(this.command, self.message_types)),
+            Seek(lambda x: x.payload._io.tell()), #seek back to the end of actually parsed data.
             "unknown" / Optional(OffsettedEnd(-2, GreedyBytes)),
             "crc" / Int16ul,
         )
