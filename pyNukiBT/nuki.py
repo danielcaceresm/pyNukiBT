@@ -188,13 +188,13 @@ class NukiDevice:
             # In the past there where some cases where crc was 0.
             # We don't want to fail in this case, but we do want to log it to see if it is still happening.
             if msg.crc == 0:
-                logger.warning(f"got message with crc=0. cmd:{msg.command}")
+                logger.info(f"got message with crc=0. cmd:{msg.command}")
         except construct.core.ChecksumError as ex:
             logger.error(f"Checksum error in incoming message {ex}")
             raise
 
         if msg and len(msg.unknown) != 0:
-            logger.warning(
+            logger.info(
                 f"Got unexpected message length for command {msg.command}. Got {len(msg.unknown)} unknown bytes with value: {msg.unknown}"
             )
 
@@ -243,15 +243,19 @@ class NukiDevice:
             if msg.command == self._const.NukiCommand.ERROR_REPORT:
                 if msg.payload.error_code == self._const.ErrorCode.P_ERROR_NOT_PAIRING:
                     logger.error("UNPAIRED! Put Nuki in pairing mode by pressing the button 6 seconds, Then try again")
+                if msg.payload.error_code == self._const.ErrorCode.K_ERROR_MOTOR_TIMEOUT:
+                    logger.info(
+                        f"Error {msg.payload.error_code}, command {msg.payload.command_identifier}"
+                    )
                 else:
                     logger.error(
                         f"Error {msg.payload.error_code}, command {msg.payload.command_identifier}"
                     )
-                ex = NukiErrorException(
-                    error_code=msg.payload.error_code,
-                    command=msg.payload.command_identifier,
-                )
-                raise ex
+                    ex = NukiErrorException(
+                        error_code=msg.payload.error_code,
+                        command=msg.payload.command_identifier,
+                    )
+                    raise ex
 
             elif msg.command == self._const.NukiCommand.STATUS:
                 logger.debug(f"Last action: {msg.payload.status}")
@@ -282,11 +286,11 @@ class NukiDevice:
             elif msg.command != self._const.NukiCommand.STATUS:
                 # NukiCommand.STATUS command may be sent without a command waiting for it,
                 # for example when status is changed from ACCEPTED to COMPLETED
-                logger.error("%s: Received unsolicited notification: %s", self._name, msg)
+                logger.info("%s: Received unsolicited notification: %s", self._name, msg)
                 if msg.command == self._expected_response and (not self._notify_future or self._notify_future.done()):
-                    logger.error("received expected response but no active notify_future {self._notify_future}")
+                    logger.info("received expected response but no active notify_future {self._notify_future}")
                 else:
-                    logger.error("was expecting %s", self._expected_response)
+                    logger.info("was expecting %s", self._expected_response)
 
         except Exception as ex:
             if isinstance(ex, NukiErrorException):
